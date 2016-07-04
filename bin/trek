@@ -1,0 +1,51 @@
+#!/bin/bash
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]
+do
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+  BIN_DIR="$( cd -P "$( dirname "$SOURCE"  )" && pwd )"
+done
+BIN_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+LIB_DIR="$(dirname "$BIN_DIR")"
+CLASSPATH=$( { hadoop classpath; } 2>&1 ):$( { hbase classpath; } 2>&1 ):$LIB_DIR'/lib/*:'
+CLASS=''
+JARS=''
+LOG4J=-Dlog4j.configuration=file:$LIB_DIR'/bin/log4j.properties'
+JAVA='java -cp'
+TMP_JARS='-libjars '
+EXTRA_ARGS='-XX:+UseG1GC'
+for entry in "$LIB_DIR"/lib/*
+do
+    TMP_JARS=$TMP_JARS$entry","
+done
+if [ "$1" == "web" ]; then
+	CLASS="com.spright.trek.web.WebServer"
+	EXTRA_ARGS=$EXTRA_ARGS" -Djcifs.properties="$LIB_DIR'/bin/jcifs.prp'
+elif [ "$1" == "run_class" ]; then
+    if [ "$2" == "" ]; then
+        echo "Usage: trek run_class <class> [<args>]"
+        exit 1
+    fi
+    CLASS=$2
+    shift 1
+else
+    echo "Usage: trek <tool> [<args>]"
+    echo "Some Tools take arguments."
+    echo "Tools:"
+    echo "  web                     Trek web service"
+    echo "  run_class               Run the custom class"
+    exit 1
+fi
+ARGS=""
+shift 1
+i=0
+while [ -n "$1" ]
+do
+	ARGS=$ARGS" "$1
+	i=$(($i+1))	
+	shift	
+done
+echo $EXTRA_ARGS
+exec $JAVA $CLASSPATH $EXTRA_ARGS $LOG4J $CLASS $JARS $ARGS
